@@ -32,7 +32,6 @@ enum LINE_STATUS {LINE_OK = 0, LINE_BAD, LINE_OPEN};
  */
 enum HTTP_CODE {NO_REQUEST, GET_REQUEST, BAD_REQUEST, FORBIDDEN_REQUEST, INTERNAL_ERROR, CLOSED_CONNECTION};
 
-
 /*
  * 为了简化问题，我们没有给客户端发送一个完整的HTTP应答报文
  * 而只是根据服务器的处理结果发送如下成功或失败信息
@@ -41,7 +40,6 @@ static const char* szret[] = {
        "HTTP/1.1 200 OK\r\nContent-Type: text/html;\r\nContent-Length: 22\r\n\r\nI get a correct result",
        "HTTP/1.1 200 OK\r\nContent-Type: text/html;\r\nContent-Length: 15\r\n\r\nSomething wrong"
     };
-
 
 /*
  * 从状态机，用于解析出一行内容
@@ -85,7 +83,6 @@ LINE_STATUS parse_line(char *buffer, int &checked_index, int &read_index)
     //如果所有内容都分析完毕还没有遇到'\r'，则返回LINE_OPEN，表示还需继续读取客户数据才能进一步分析
     return LINE_OPEN;
 }
-
 
 
 /*
@@ -211,4 +208,87 @@ HTTP_CODE parse_content(char *buffer, int &checked_index, CHECK_STATE &checkstat
     else{
         return BAD_REQUEST;
     }
+}
+
+
+
+/*
+ * 主函数
+ */
+int main(int argc, char * argv[])
+{
+    const char *ip = "0.0.0.0";
+    int port = 10000;
+    if(argc > 2){
+        ip = argv[1];
+        port = atoi(argv[2]);
+    }
+    printf("%s %s %d\n", basename(argv[0]), ip, port);
+    
+
+    struct sockaddr_in address;
+    bzero(&address, sizeof(address));
+    address.sin_family = AF_INET;
+    inet_pton(AF_INET, ip, &address.sin_addr);
+    address.sin_port = htons(port);
+
+    int listenfd = socket(PF_INET, SOCK_STREAM, 0);
+    assert(listenfd >= 0);
+    int ret = bind(listenfd, (struct sockaddr *)&address, sizeof(address));
+    assert(ret != -1);
+    ret = listen(listenfd, 5);
+    assert(ret != -1);
+    struct sockaddr_in client_address;
+    socklen_t client_addrlength = sizeof(client_address);
+    int fd = accept(listenfd,  (struct sockaddr *)&client_address, &client_addrlength);
+    if(fd < 0){
+        printf("errno is: %d\n", errno);
+    }
+    else{
+    	//读缓冲区
+        char buffer[BUFFER_SIZE];
+        memset(buffer, '\0', BUFFER_SIZE);
+        int data_read = 0;
+        //当前已读取多少字节的客户数据
+        int read_index = 0;
+        //当前已经分析完了多少字节的客户数据
+        int checked_index = 0;
+        //行在buffer中的起始位置
+        int start_line = 0;
+
+        //设置主状态机的初始状态
+        CHECK_STATE checkstate = CHECK_STATE_REQUESTLINE;
+        //循环读取客户数据并分析之
+        while(1){
+            data_read = recv(fd, buffer + read_index, BUFFER_SIZE - read_index, 0);
+            if(data_read == -1){
+                printf("reading failed\n");
+                break;
+            }
+            else if(data_read == 0){
+                printf("remote client has closed the connection\n");
+                break;
+            }
+            read_index += data_read;
+            //分析目前已经获取的所有客户数据
+            HTTP_CODE result = parse_content(buffer, checked_index, checkstate, read_index, start_line);
+            //尚未得到一个完整的HTTP请求
+            if(result == NO_REQUEST){
+                continue;
+            }
+            //得到一个完整的、正确的HTTP请求
+            else if(result == GET_REQUEST){
+                send(fd, szret[0], strlen(szret[0]), 0);
+                break;
+            }
+            //其他情况表示发送错误
+            else{
+                send(fd, szret[1], strlen(szret[1]), 0);
+                break;
+            }
+        }
+        close(fd);
+    }
+    close(listenfd);
+    return 0;
 }
