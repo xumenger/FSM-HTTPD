@@ -42,3 +42,46 @@ static const char* szret[] = {
        "HTTP/1.1 200 OK\r\nContent-Type: text/html;\r\nContent-Length: 15\r\n\r\nSomething wrong"
     };
 
+
+/*
+ * 从状态机，用于解析出一行内容
+ */
+LINE_STATUS parse_line(char *buffer, int &checked_index, int &read_index)
+{
+    char temp;
+    //checked_index指向buffer(应用程序的读缓冲区)中当前正在分析的字节
+    //read_index指向buffer中客户数据的尾部的下一字节
+    //buffer中第0~checked_index字节都已分析完毕
+    //第checked_index~(read_index-1)字节由下面的循环挨个分析
+    for(; checked_index < read_index; ++checked_index){
+        //获取当前要分析的字节
+        temp = buffer[checked_index];
+        //如果当前字节是'\r'，即回车符，说明可能读到一个完整行
+        if('\r' == temp){
+            //如果'\r'字符碰巧是目前buffer中的最后一个已经被读入的客户数据
+            //那么这次分析没有读取到一个完整的行，返回LINE_OPEN以表示还需继续读客户数据才能进一步分析
+            if(read_index == (checked_index + 1)){
+                return LINE_OPEN;
+            }
+            //如果下一个字符是'\n'则说明成功读到一个完整行
+            else if('\n' == buffer[checked_index + 1]){
+                buffer[checked_index++] = '\0';
+                buffer[checked_index++] = '\0';
+                return LINE_OK;
+            }
+            //佛足额的话，说明客户发送的HTTP请求存在语法问题
+            return LINE_BAD;
+        }
+        //当前的字节是'\n'，即换行符，则说明可能读到一个完整的行
+        else if('\n' == temp){
+            if((checked_index > 1) && ('\r' == buffer[checked_index - 1])){
+                buffer[checked_index - 1] = '\0';
+                buffer[checked_index++] = '\0';
+                return LINE_OK;
+            }
+            return LINE_BAD;
+        }
+    }
+    //如果所有内容都分析完毕还没有遇到'\r'，则返回LINE_OPEN，表示还需继续读取客户数据才能进一步分析
+    return LINE_OPEN;
+}
