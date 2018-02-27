@@ -32,3 +32,13 @@ enum LINE_STATUS {LINE_OK = 0, LINE_BAD, LINE_OPEN};
  */
 enum HTTP_CODE {NO_REQUEST, GET_REQUEST, BAD_REQUEST, FORBIDDEN_REQUEST, INTERNAL_ERROR, CLOSED_CONNECTION};
 
+
+/*
+ * 为了简化问题，我们没有给客户端发送一个完整的HTTP应答报文
+ * 而只是根据服务器的处理结果发送如下成功或失败信息
+ */
+static const char* szret[] = {
+       "HTTP/1.1 200 OK\r\nContent-Type: text/html;\r\nContent-Length: 22\r\n\r\nI get a correct result",
+       "HTTP/1.1 200 OK\r\nContent-Type: text/html;\r\nContent-Length: 15\r\n\r\nSomething wrong"
+    };
+
