@@ -85,3 +85,54 @@ LINE_STATUS parse_line(char *buffer, int &checked_index, int &read_index)
     //如果所有内容都分析完毕还没有遇到'\r'，则返回LINE_OPEN，表示还需继续读取客户数据才能进一步分析
     return LINE_OPEN;
 }
+
+
+
+/*
+ * 分析请求行
+ */
+HTTP_CODE parse_requestline(char *temp, CHECK_STATE &checkstate)
+{
+    char *url = strpbrk(temp, " \t");
+    //如果请求行中没有空白字符或'\t'字符，则HTTP请求必有问题
+    if(!url){
+        return BAD_REQUEST;
+    }
+    *url++ = '\0';
+
+    char *method = temp;
+    //仅支持GET方法
+    if(0 == strcasecmp(method, "GET")){
+        printf("The request method is GET\n");
+    }
+    else{
+        return BAD_REQUEST;
+    }
+
+    url += strspn(url, " \t");
+    char *version = strpbrk(url, " \t");
+    if(!version){
+        return BAD_REQUEST;
+    }
+    *version++ = '\0';
+    version += strspn(version, " \t");
+
+    //仅支持HTTP/1.1
+    if(0 != strcasecmp(version, "HTTP/1.1")){
+        return BAD_REQUEST;
+    }
+
+    //检查URL是否合法
+    if(strncasecmp(url, "http://", 7) == 0){
+        url += 7;
+        url = strchr(url, '/');
+    }
+    if((!url) || (url[0] != '/')){
+        return BAD_REQUEST;
+    }
+    printf("The request url is: %s\n", url);
+
+    //HTTP请求行处理完毕，状态转移到头部字段的分析
+    checkstate = CHECK_STATE_HEADER;
+    return NO_REQUEST;
+}
