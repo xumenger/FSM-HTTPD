@@ -136,3 +136,26 @@ HTTP_CODE parse_requestline(char *temp, CHECK_STATE &checkstate)
     checkstate = CHECK_STATE_HEADER;
     return NO_REQUEST;
 }
+
+
+/*
+ * 分析头部字段
+ */
+HTTP_CODE parse_headers(char *temp)
+{
+    //遇到一个空行，说明我们得到了一个正确的HTTP请求
+    if('\0' == temp[0]){
+        return GET_REQUEST;
+    }
+    //处理“HOST头部字段”
+    else if(0 == strncasecmp(temp, "Host:", 5)){
+        temp += 5;
+        temp += strspn(temp, " \t");
+        printf("the request host is: %s\n", temp);
+    }
+    //其他头部字段都不处理
+    else{
+        printf("I can not handle this header:(%s)\n", temp);
+    }
+    return NO_REQUEST;
+}
